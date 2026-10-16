@@ -27,7 +27,7 @@ jobs:
       - name: Check for common secret patterns
         shell: bash
         run: |
-          if grep -RInE '(service_role|BEGIN (RSA |OPENSSH )?PRIVATE KEY|mnemonic|seed phrase)' src public index.html .env.example 2>/dev/null; then
+          if grep -RInE '(SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=|sb_secret_[A-Za-z0-9_-]{20,}|BEGIN (RSA |OPENSSH )?PRIVATE KEY|mnemonic|seed phrase)' src public index.html .env.example 2>/dev/null; then
             echo "Potential secret-like content found in public files."
             exit 1
           fi
