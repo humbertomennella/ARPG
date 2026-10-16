@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import AuthPanel from "./AuthPanel.jsx";
 
 const sections = [
   { id: "inicio", label: "Início", number: "00" },
   { id: "arquivo", label: "Arquivo", number: "01" },
   { id: "metodo", label: "Método", number: "02" },
-  { id: "registro", label: "Registro", number: "03" }
+  { id: "registro", label: "Registro", number: "03" },
+  { id: "acesso", label: "Acesso", number: "04" }
 ];
 
 const records = [
@@ -73,8 +75,8 @@ function Method() {
 function Register() {
   const entries = [
     ["2026-10-16","BASE DO PROJETO","Repositório público inicial verificado."],
-    ["EM ANDAMENTO","ARQUITETURA","Aplicação e documentação técnica em construção."],
-    ["PENDENTE","BANCO DE DADOS","Nenhum projeto Supabase dedicado ao ARPG foi identificado."],
+    ["EM ANDAMENTO","ARQUITETURA","Aplicação, documentação técnica e endpoint de submissão em construção."],
+    ["VERIFICADO","BANCO DE DADOS","Projeto Supabase dedicado criado; políticas privadas e limite de submissões configurados."],
     ["NÃO LANÇADO","DESAFIO E RECOMPENSA","Etapas finais, custódia e prêmio ainda não publicados."]
   ];
   return <section className="page-content"><div className="eyebrow">REGISTRO / ESTADO PÚBLICO</div><h1 className="page-title">Nada será declarado <em>sem prova.</em></h1><p className="page-intro">Este painel separa o que foi verificado do que ainda está sendo construído. O projeto não usa cronômetros falsos, contagens artificiais ou alegações de comprometimento externo.</p>
@@ -104,5 +106,6 @@ export default function App() {
     {active === "arquivo" && <Archive/>}
     {active === "metodo" && <Method/>}
     {active === "registro" && <Register/>}
+    {active === "acesso" && <AuthPanel/>}
   </main><Footer/></div>;
 }
