@@ -57,9 +57,29 @@ Deno.serve(async (req: Request) => {
 
   let body: unknown;
   try {
-    const length = Number(req.headers.get("content-length") ?? "0");
-    if (length > 16_000) return json(413, { error: "request_too_large" });
-    body = await req.json();
+    const declaredLength = Number(req.headers.get("content-length") ?? "0");
+    if (declaredLength > 16_000) return json(413, { error: "request_too_large" });
+    if (!req.body) return json(400, { error: "invalid_request" });
+    const reader = req.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > 16_000) {
+        await reader.cancel();
+        return json(413, { error: "request_too_large" });
+      }
+      chunks.push(value);
+    }
+    const combined = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    body = JSON.parse(new TextDecoder().decode(combined));
   } catch {
     return json(400, { error: "invalid_request" });
   }
