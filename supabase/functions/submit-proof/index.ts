@@ -43,11 +43,7 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const encryptionKeyEncoded = Deno.env.get("ARPG_SUBMISSION_ENCRYPTION_KEY");
-  const hmacKeyEncoded = Deno.env.get("ARPG_SUBMISSION_HMAC_KEY");
-
-  // Fail closed until independent, server-only keys have been provisioned.
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !encryptionKeyEncoded || !hmacKeyEncoded) {
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return json(503, { error: "submission_service_not_configured" });
   }
 
@@ -95,18 +91,6 @@ Deno.serve(async (req: Request) => {
     return json(400, { error: "invalid_request" });
   }
 
-  let encryptionKey: Uint8Array;
-  let hmacKey: Uint8Array;
-  try {
-    encryptionKey = decodeBase64(encryptionKeyEncoded);
-    hmacKey = decodeBase64(hmacKeyEncoded);
-  } catch {
-    return json(503, { error: "submission_service_not_configured" });
-  }
-  if (encryptionKey.length !== 32 || hmacKey.length < 32) {
-    return json(503, { error: "submission_service_not_configured" });
-  }
-
   const userClient = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${tokenMatch[1]}` } },
@@ -115,6 +99,30 @@ Deno.serve(async (req: Request) => {
   if (userError || !userData.user) return json(401, { error: "authentication_required" });
 
   try {
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: secretRows, error: secretError } = await admin.rpc("get_arpg_submission_secrets");
+    const secretRow = Array.isArray(secretRows) ? secretRows[0] : null;
+    if (secretError || !secretRow ||
+        typeof secretRow.encryption_key !== "string" ||
+        typeof secretRow.hmac_key !== "string") {
+      console.error("ARPG submission key retrieval failed");
+      return json(503, { error: "submission_service_not_configured" });
+    }
+
+    let encryptionKey: Uint8Array;
+    let hmacKey: Uint8Array;
+    try {
+      encryptionKey = decodeBase64(secretRow.encryption_key);
+      hmacKey = decodeBase64(secretRow.hmac_key);
+    } catch {
+      return json(503, { error: "submission_service_not_configured" });
+    }
+    if (encryptionKey.length !== 32 || hmacKey.length < 32) {
+      return json(503, { error: "submission_service_not_configured" });
+    }
+
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const cryptoKey = await crypto.subtle.importKey("raw", encryptionKey, { name: "AES-GCM" }, false, ["encrypt"]);
     const plaintext = new TextEncoder().encode(proof.trim());
@@ -124,9 +132,6 @@ Deno.serve(async (req: Request) => {
     const submitterHash = await hmacHex(hmacKey, userData.user.id);
     const proofDigest = await sha256Hex(ciphertext);
 
-    const admin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
     const { data, error } = await admin.rpc("record_arpg_submission", {
       p_stage_slug: stageSlug,
       p_submitter_hash: submitterHash,
